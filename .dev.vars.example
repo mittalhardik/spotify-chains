@@ -1,0 +1,6 @@
+# Copy to .dev.vars for `npm run dev` (local only, never commit .dev.vars)
+SPOTIFY_CLIENT_ID=
+SPOTIFY_CLIENT_SECRET=
+API_TOKEN=choose-a-long-random-string
+NTFY_TOPIC=
+LASTFM_KEY=

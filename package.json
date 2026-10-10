@@ -1,0 +1,24 @@
+{
+  "name": "spotify-chains",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev --test-scheduled",
+    "deploy": "wrangler deploy",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "db:migrate:local": "wrangler d1 migrations apply spotify-chains --local",
+    "db:migrate:remote": "wrangler d1 migrations apply spotify-chains --remote",
+    "e2e": "bash scripts/e2e.sh"
+  },
+  "dependencies": {
+    "hono": "^4.13.13"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261010.1",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.7",
+    "wrangler": "^4.149.0"
+  }
+}

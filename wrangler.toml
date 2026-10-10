@@ -1,0 +1,35 @@
+name = "spotify-chains"
+main = "src/index.ts"
+compatibility_date = "2025-09-01"
+
+# Two crons: the poller watches the player every minute; the sync job
+# reconciles recently-played and creates/grows playlists every 15 minutes.
+[triggers]
+crons = ["* * * * *", "*/15 * * * *"]
+
+# Binding to this same Worker: each cron run hands every user's work to its own invocation,
+# so each user gets a fresh 50-subrequest / 10 ms CPU budget on the free plan.
+[[services]]
+binding = "SELF"
+service = "spotify-chains"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "spotify-chains"
+database_id = "7f6aa928-27a2-4aa4-9674-92e4d4b536c2"
+migrations_dir = "migrations"
+
+# The dashboard pages are plain .html files imported as strings.
+[[rules]]
+type = "Text"
+globs = ["**/*.html"]
+fallthrough = true
+
+[observability]
+enabled = true
+
+# Secrets (set with `npx wrangler secret put <NAME>`, never commit them):
+#   SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET
+#   LASTFM_KEY (optional)
+#   API_TOKEN, NTFY_TOPIC (optional, legacy: sign-in token and notifications for the original owner, user 1)
+# Optional var: MAX_USERS (default 5, Spotify's Development Mode limit).

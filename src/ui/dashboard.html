@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#121212">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icon.svg">
+<title>Spotify Chains</title>
+<style>
+  :root {
+    --bg:#f6f6f4; --card:#ffffff; --text:#161616; --muted:#6b6b6b; --line:#e3e3df;
+    --accent:#128a3e; --accent-ink:#ffffff; --warn:#a15c00; --danger:#b42318; --chip:#efefeb;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#121212; --card:#1c1c1c; --text:#f2f2f2; --muted:#a0a0a0; --line:#2b2b2b;
+            --accent:#1ed760; --accent-ink:#000000; --warn:#f2b35b; --danger:#ff6b5f; --chip:#262626; }
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text);
+         font:15px/1.45 -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+         padding:env(safe-area-inset-top) 0 calc(72px + env(safe-area-inset-bottom)); }
+  main { max-width:640px; margin:0 auto; padding:16px; }
+  h1 { font-size:26px; margin:8px 0 16px; letter-spacing:-0.02em; }
+  h2 { font-size:13px; text-transform:uppercase; letter-spacing:0.06em; color:var(--muted); margin:24px 0 8px; font-weight:600; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:16px; padding:16px; margin-bottom:12px; }
+  .muted { color:var(--muted); }
+  .small { font-size:13px; }
+  .row { display:flex; gap:8px; align-items:center; justify-content:space-between; }
+  .title { font-size:18px; font-weight:650; margin:0; overflow-wrap:anywhere; }
+  .stats { display:flex; gap:16px; margin-top:12px; flex-wrap:wrap; }
+  .stat b { display:block; font-size:20px; font-variant-numeric:tabular-nums; }
+  .chip { display:inline-block; font-size:12px; padding:2px 8px; border-radius:999px; background:var(--chip); color:var(--muted); white-space:nowrap; }
+  .chip.good { color:var(--accent); } .chip.warn { color:var(--warn); } .chip.bad { color:var(--danger); }
+  .btns { display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }
+  button, .btn { font:inherit; font-size:14px; font-weight:600; padding:10px 14px; border-radius:10px; border:1px solid var(--line);
+                 background:var(--card); color:var(--text); text-decoration:none; cursor:pointer; }
+  button.primary, .btn.primary { background:var(--accent); color:var(--accent-ink); border-color:transparent; }
+  button.danger { color:var(--danger); }
+  button:disabled { opacity:0.5; }
+  ul.plays { list-style:none; margin:8px 0 0; padding:0; }
+  ul.plays li { display:flex; gap:10px; align-items:flex-start; padding:10px 0; border-top:1px solid var(--line); }
+  ul.plays li:first-child { border-top:0; }
+  .song { flex:1; min-width:0; }
+  .song .n { font-weight:550; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .song .a { font-size:13px; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .skipped .n { text-decoration:line-through; color:var(--muted); }
+  .chainlist .card { cursor:pointer; }
+  nav { position:fixed; left:0; right:0; bottom:0; display:flex; background:var(--card); border-top:1px solid var(--line);
+        padding:6px 8px calc(6px + env(safe-area-inset-bottom)); }
+  nav button { flex:1; border:0; background:none; color:var(--muted); padding:10px 4px; }
+  nav button.on { color:var(--accent); }
+  label { display:block; margin:12px 0 4px; font-weight:600; }
+  input, select { width:100%; font:inherit; padding:10px; border-radius:10px; border:1px solid var(--line); background:var(--bg); color:var(--text); }
+  .seg { display:flex; border:1px solid var(--line); border-radius:10px; overflow:hidden; }
+  .seg button { flex:1; border:0; border-radius:0; }
+  .seg button.on { background:var(--accent); color:var(--accent-ink); }
+  .toast { position:fixed; left:16px; right:16px; bottom:calc(84px + env(safe-area-inset-bottom)); max-width:608px; margin:0 auto;
+           background:var(--text); color:var(--bg); padding:12px 14px; border-radius:12px; font-weight:550; opacity:0;
+           transform:translateY(8px); transition:all .2s; pointer-events:none; }
+  .toast.show { opacity:1; transform:none; }
+  .back { border:0; background:none; padding:0; color:var(--accent); margin:8px 0; }
+  .empty { text-align:center; padding:32px 16px; color:var(--muted); }
+  details summary { cursor:pointer; color:var(--muted); font-size:13px; }
+  pre { white-space:pre-wrap; font-size:12px; color:var(--muted); margin:6px 0 0; }
+  code { font-size:12px; background:var(--chip); padding:1px 5px; border-radius:6px; }
+</style>
+</head>
+<body>
+<main id="app"><p class="muted">Loading…</p></main>
+<nav>
+  <button data-tab="live" class="on">Live</button>
+  <button data-tab="chains">Chains</button>
+  <button data-tab="settings">Settings</button>
+</nav>
+<div class="toast" id="toast"></div>
+
+<script>
+const KIND = {
+  first: ['First seen', ''], auto_next: ['Played on', 'good'], skip_next: ['After Next', ''], back: ['Back', ''],
+  autoplay: ['Autoplay', 'good'], manual_pick: ['You picked', 'warn'], uncertain: ['Uncertain', 'bad'],
+  backfill: ['Backfill', ''], manual_break: ['Split', 'warn'],
+};
+const PLAYLIST = {
+  none: ['No playlist yet', ''], creating: ['Creating…', ''], created: ['Playlist', 'good'], copy: ['Copy, skipped', 'warn'],
+  too_short: ['Too short', ''], discarded: ['Discarded', 'bad'],
+};
+const REASON = { ok: 'Ready', too_short: 'Too few songs', copy: 'Mostly a copy' };
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => '&#' + c.charCodeAt(0) + ';');
+const chip = (pair) => `<span class="chip ${pair[1]}">${esc(pair[0])}</span>`;
+let tab = 'live', detailId = null, settings = null;
+
+async function api(path, opts = {}) {
+  const res = await fetch(path, { ...opts, headers: { 'content-type': 'application/json', ...(opts.headers || {}) } });
+  const body = await res.json().catch(() => ({}));
+  if (res.status === 401) { location.reload(); throw new Error('Signed out'); }
+  if (!res.ok) throw new Error(body.error || res.statusText);
+  return body;
+}
+function toast(msg) {
+  const t = $('#toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.remove('show'), 2600);
+}
+async function act(btn, fn, okMsg) {
+  btn.disabled = true;
+  try { const r = await fn(); toast(okMsg || r.result || r.message || 'Done'); await render(); }
+  catch (e) { toast(e.message); btn.disabled = false; }
+}
+function ago(ts) {
+  if (!ts) return '—';
+  const s = Math.round((Date.now() - ts) / 1000);
+  if (s < 60) return 'just now';
+  const m = Math.round(s / 60); if (m < 60) return m + ' min ago';
+  const h = Math.round(m / 60); if (h < 36) return h + ' h ago';
+  return Math.round(h / 24) + ' days ago';
+}
+const when = (ts) => ts ? new Date(ts).toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
+const dur = (ms) => { const m = Math.round(ms / 60000); return m >= 60 ? Math.floor(m / 60) + 'h ' + (m % 60) + 'm' : m + 'm'; };
+function playlistChip(c) {
+  if (c.playlistStatus === 'none') return chip([c.status === 'open' ? REASON[c.summary.reason] : 'Awaiting review', c.summary.eligible ? 'good' : '']);
+  return chip(PLAYLIST[c.playlistStatus] || [c.playlistStatus, '']);
+}
+function statsHtml(s) {
+  return `<div class="stats">
+    <div class="stat"><b>${s.keptUnique}</b><span class="small muted">song${s.keptUnique === 1 ? '' : 's'}</span></div>
+    <div class="stat"><b>${dur(s.listenMs)}</b><span class="small muted">listened</span></div>
+    <div class="stat"><b>${s.skips}</b><span class="small muted">skipped</span></div>
+    <div class="stat"><b>${Math.round(s.copyRatio * 100)}%</b><span class="small muted">from seed</span></div>
+  </div>`;
+}
+function playsHtml(plays, chain, allowSplit) {
+  if (!plays.length) return '<p class="muted small">No songs yet.</p>';
+  return '<ul class="plays">' + plays.map((p, i) => `
+    <li class="${p.skipped ? 'skipped' : ''}">
+      <div class="song">
+        <div class="n">${esc(p.name)}</div>
+        <div class="a">${esc(p.artists)} · ${esc(when(p.startedAt))}</div>
+        ${p.evidence ? `<details><summary>why</summary><pre>${esc(JSON.stringify(p.evidence, null, 1))}</pre></details>` : ''}
+      </div>
+      <div style="text-align:right">
+        ${chip(KIND[p.kind] || [p.kind, ''])}
+        ${allowSplit && i > 0 && !p.added ? `<div><button class="small" style="margin-top:6px;padding:4px 8px" data-split="${p.id}">Split here</button></div>` : ''}
+      </div>
+    </li>`).join('') + '</ul>';
+}
+function chainActions(c) {
+  const b = [];
+  if (c.playlistUrl) b.push(`<a class="btn primary" href="${esc(c.playlistUrl)}">Open in Spotify</a>`);
+  if (!['created', 'creating', 'discarded'].includes(c.playlistStatus)) b.push(`<button class="primary" data-create="${c.id}">Create playlist</button>`);
+  b.push(`<button data-rename="${c.id}">Rename</button>`);
+  if (!['created', 'creating'].includes(c.playlistStatus)) b.push(`<button data-merge="${c.id}">Merge with previous</button>`);
+  if (c.playlistStatus !== 'discarded') b.push(`<button class="danger" data-discard="${c.id}">Discard</button>`);
+  return `<div class="btns">${b.join('')}</div>`;
+}
+
+async function renderLive() {
+  const st = await api('/api/status');
+  settings = st.settings;
+  if (!st.connected) {
+    return `<h1>Chains</h1><div class="card"><p class="title">Connect Spotify</p>
+      <p class="muted">Allow this app to read what you play and create playlists.</p>
+      <div class="btns"><a class="btn primary" href="/auth/login">Connect Spotify</a></div></div>`;
+  }
+  const np = st.nowPlaying;
+  let html = `<h1>Chains</h1><p class="small muted" style="margin:-10px 0 14px">Signed in as ${esc(st.user.name)}</p>`;
+  html += `<div class="card"><div class="row"><span class="small muted">${np ? (np.isPlaying ? 'Now playing' : 'Paused') : 'Nothing seen yet'}${np && np.device ? ' · ' + esc(np.device) : ''}</span>
+    <span class="small muted">checked ${ago(st.lastPolledAt)}</span></div>
+    ${np ? `<p class="title" style="margin-top:6px">${esc(np.name)}</p><div class="muted">${esc(np.artists)}${np.shuffle ? ' · shuffle' : ''}</div>` : ''}
+    ${!st.settings.tracking ? '<p class="chip warn" style="margin-top:8px">Tracking paused</p>' : ''}</div>`;
+  const c = st.current;
+  if (!c) return html + '<div class="empty">Play something on Spotify. The first chain starts with the next song the tracker sees.</div>';
+  html += `<h2>Current chain</h2><div class="card">
+    <div class="row"><p class="title">${esc(c.name)}</p>${playlistChip(c)}</div>
+    <div class="small muted">Started ${esc(when(c.startedAt))} · ${esc(c.seedType)}</div>
+    ${statsHtml(c.summary)}
+    <div class="btns">
+      <button data-break>Break chain here</button>
+      <button data-keep>Keep (undo last break)</button>
+      ${c.playlistUrl ? `<a class="btn primary" href="${esc(c.playlistUrl)}">Open playlist</a>` : (c.playlistStatus === 'none' ? `<button class="primary" data-create="${c.id}">Create playlist</button>` : '')}
+    </div></div>
+    <h2>Latest songs</h2><div class="card">${playsHtml(c.recent, c, false)}</div>`;
+  return html;
+}
+
+async function renderChains() {
+  if (detailId != null) {
+    const c = await api('/api/chains/' + detailId);
+    return `<button class="back" data-back>‹ All chains</button>
+      <div class="card"><div class="row"><p class="title">${esc(c.name)}</p>${playlistChip(c)}</div>
+      <div class="small muted">${esc(when(c.startedAt))}${c.endedAt ? ' → ' + esc(when(c.endedAt)) : ' · still open'} · started by ${esc((KIND[c.startKind] || [c.startKind])[0])}</div>
+      ${statsHtml(c.summary)}${chainActions(c)}</div>
+      <h2>Songs</h2><div class="card">${playsHtml(c.plays, c, true)}</div>`;
+  }
+  const { chains } = await api('/api/chains');
+  if (!chains.length) return '<h1>Chains</h1><div class="empty">No chains yet.</div>';
+  return '<h1>Chains</h1><div class="chainlist">' + chains.map((c) => `
+    <div class="card" data-open="${c.id}">
+      <div class="row"><p class="title" style="font-size:16px">${esc(c.name)}</p>${playlistChip(c)}</div>
+      <div class="small muted">${esc(when(c.startedAt))} · ${c.summary.keptUnique} song${c.summary.keptUnique === 1 ? '' : 's'} · ${dur(c.summary.listenMs)}${c.status === 'open' ? ' · open' : ''}</div>
+    </div>`).join('') + '</div>';
+}
+
+async function renderSettings() {
+  const st = await api('/api/status');
+  settings = st.settings;
+  const s = settings;
+  return `<h1>Settings</h1>
+    <p class="small muted" style="margin:-10px 0 14px">Signed in as ${esc(st.user.name)} · ${st.seats.used} of ${st.seats.max} seats used</p>
+    <div class="card">
+      <label>Mode</label>
+      <div class="seg"><button data-mode="review" class="${s.mode === 'review' ? 'on' : ''}">Review</button><button data-mode="auto" class="${s.mode === 'auto' ? 'on' : ''}">Auto</button></div>
+      <p class="small muted">Review: chains are tracked, you tap Create. Auto: playlists are created by themselves.</p>
+      <label for="minSongs">Minimum songs for a playlist</label>
+      <input id="minSongs" type="number" min="1" max="100" value="${s.minSongs}">
+      <label for="copy">Skip chains that are at least this % one existing playlist/album</label>
+      <input id="copy" type="number" min="0" max="100" value="${Math.round(s.copyThreshold * 100)}">
+      <label for="tz">Timezone (for names)</label>
+      <input id="tz" value="${esc(s.timezone)}">
+      <label for="ntfy">Push notifications: your ntfy topic</label>
+      <input id="ntfy" value="${esc(s.ntfyTopic)}" placeholder="e.g. chains-${Math.random().toString(36).slice(2, 10)}" autocapitalize="off" autocorrect="off">
+      <p class="small muted">Install the free ntfy app, subscribe to a hard-to-guess topic, and enter the same topic here.</p>
+      <div class="btns"><button class="primary" data-save>Save</button></div>
+    </div>
+    <div class="card">
+      <div class="row"><span>Tracking</span>${chip(s.tracking ? ['On', 'good'] : ['Paused', 'warn'])}</div>
+      <div class="btns"><button data-tracking>${s.tracking ? 'Pause tracking' : 'Resume tracking'}</button></div>
+    </div>
+    <div class="card">
+      <div class="row"><span>Siri Shortcuts token</span>${chip(st.user.hasShortcutToken ? ['Set', 'good'] : ['Not set', ''])}</div>
+      <p class="small muted">Use it as <code>Authorization: Bearer &lt;token&gt;</code> in your Shortcuts. Making a new one replaces the old one.</p>
+      <div id="tokenOut"></div>
+      <div class="btns"><button data-newtoken>${st.user.hasShortcutToken ? 'Make a new token' : 'Create token'}</button></div>
+    </div>
+    <div class="card">
+      <p class="small muted">Run jobs now (normally automatic)</p>
+      <div class="btns"><button data-run="poll">Check player</button><button data-run="sync">Sync playlists</button>
+      <a class="btn" href="/auth/login">Reconnect Spotify</a></div>
+      <form method="post" action="/logout"><button style="margin-top:12px">Sign out</button></form>
+    </div>
+    <div class="card">
+      <p class="small muted">Delete everything this app stores about you and free your seat. Playlists already in Spotify stay there.</p>
+      <div class="btns"><button class="danger" data-deleteme>Delete my data</button></div>
+    </div>`;
+}
+
+async function render() {
+  document.querySelectorAll('nav button').forEach((b) => b.classList.toggle('on', b.dataset.tab === tab));
+  try {
+    $('#app').innerHTML = await (tab === 'live' ? renderLive() : tab === 'chains' ? renderChains() : renderSettings());
+  } catch (e) {
+    $('#app').innerHTML = `<div class="card"><p class="title">Something went wrong</p><p class="muted">${esc(e.message)}</p></div>`;
+  }
+}
+
+document.addEventListener('click', (e) => {
+  const t = e.target.closest('button, [data-open]');
+  if (!t) return;
+  const d = t.dataset;
+  if (d.tab) { tab = d.tab; detailId = null; render(); return; }
+  if (d.open) { detailId = Number(d.open); render(); return; }
+  if ('back' in d) { detailId = null; render(); return; }
+  const post = (p, body) => api(p, { method: 'POST', body: JSON.stringify(body || {}) });
+  if (d.create) act(t, () => post(`/api/chains/${d.create}/create`));
+  else if (d.discard && confirm('Discard this chain? An already-created playlist stays in Spotify.')) act(t, () => post(`/api/chains/${d.discard}/discard`), 'Discarded');
+  else if (d.merge && confirm('Merge this chain into the one before it?')) act(t, async () => { const r = await post(`/api/chains/${d.merge}/merge-prev`); detailId = r.mergedInto; return r; }, 'Merged');
+  else if (d.split && confirm('Start a new chain from this song?')) act(t, async () => { const r = await post(`/api/chains/${detailId}/split`, { playId: Number(d.split) }); return r; }, 'Split');
+  else if (d.rename) { const n = prompt('New name'); if (n) act(t, () => post(`/api/chains/${d.rename}/rename`, { name: n }), 'Renamed'); }
+  else if ('break' in d) act(t, () => post('/api/break'), 'New chain started');
+  else if ('keep' in d) act(t, () => post('/api/keep'), 'Merged with previous chain');
+  else if (d.mode) act(t, () => post('/api/settings', { mode: d.mode }), d.mode === 'auto' ? 'Auto mode on' : 'Review mode on');
+  else if ('tracking' in d) act(t, () => post('/api/tracking'));
+  else if (d.run) act(t, async () => ({ message: JSON.stringify(await post('/api/run/' + d.run)).slice(0, 140) }));
+  else if ('save' in d) act(t, () => post('/api/settings', {
+    minSongs: Number($('#minSongs').value), copyThreshold: Number($('#copy').value) / 100, timezone: $('#tz').value.trim(),
+    ntfyTopic: $('#ntfy').value.trim(),
+  }), 'Saved');
+  else if ('newtoken' in d) {
+    t.disabled = true;
+    post('/api/shortcut-token').then((r) => {
+      $('#tokenOut').innerHTML = `<p class="small">Copy it now, it won't be shown again:</p><input readonly value="${esc(r.token)}" onclick="this.select()">`;
+      navigator.clipboard?.writeText(r.token).then(() => toast('Token copied'), () => {});
+    }).catch((e) => toast(e.message)).finally(() => { t.disabled = false; });
+  }
+  else if ('deleteme' in d && confirm('Delete all your chains and settings from this app? This cannot be undone.')) {
+    post('/api/account/delete').then(() => location.reload()).catch((e) => toast(e.message));
+  }
+});
+
+(async () => {
+  await render();
+  // Name playlists in your own timezone without asking.
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  if (settings && settings.timezone === 'UTC' && tz && tz !== 'UTC') {
+    api('/api/settings', { method: 'POST', body: JSON.stringify({ timezone: tz }) }).catch(() => {});
+  }
+  setInterval(() => { if (tab === 'live' && document.visibilityState === 'visible') render(); }, 30000);
+})();
+</script>
+</body>
+</html>
